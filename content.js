@@ -1,33 +1,66 @@
 console.log("ML sin internacionales: script cargado");
 
-function ocultarInternacionales() {
-  chrome.storage.sync.get(["enabled"], result => {
-    if (result.enabled === false) return;
+// ===============================
+// MercadoLibre – Filtro Internacional
+// content.js
+// ===============================
 
-    const items = document.querySelectorAll("li.ui-search-layout__item");
+// Inyectar CSS persistente
+(function injectCSS() {
+  const style = document.createElement("style");
+  style.id = "ml-internacional-style";
+  style.textContent = `
+    [data-ml-internacional="true"] {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+})();
 
-    items.forEach(item => {
-      const esInternacional = item.querySelector(
-        'span.andes-visually-hidden'
-      )?.innerText?.toLowerCase().includes("internacional");
+// Detectar si un producto es internacional
+function esProductoInternacional(card) {
+  // Texto "Internacional" (visible u oculto)
+  const texto = card.textContent?.toLowerCase() || "";
+  if (texto.includes("internacional")) return true;
 
-      const envioDesde = item.querySelector(
-        '.poly-component__shipped-from'
-      )?.innerText?.toLowerCase();
+  // Ícono CBT (muy común en Home)
+  if (card.querySelector(".poly-component__cbt")) return true;
 
-      if (
-        esInternacional ||
-        (envioDesde && envioDesde.includes("envío desde"))
-      ) {
-        item.style.display = "none";
-      }
-    });
+  // Envío desde China
+  const envioDesde = card.querySelector(".poly-component__shipped-from")
+    ?.textContent?.toLowerCase();
+  if (envioDesde?.includes("china")) return true;
+
+  return false;
+}
+
+// Marcar y ocultar productos internacionales
+function filtrarInternacionales() {
+  const cards = document.querySelectorAll(".poly-card");
+
+  cards.forEach(card => {
+    if (!esProductoInternacional(card)) return;
+
+    const contenedor =
+      card.closest("li.ui-search-layout__item") ||
+      card.closest(".andes-carousel-snapped__slide") ||
+      card.closest("[data-slider]") ||
+      card;
+
+    contenedor.setAttribute("data-ml-internacional", "true");
   });
 }
 
-// ejecuciones múltiples
-[500, 1500, 3000].forEach(t => setTimeout(ocultarInternacionales, t));
+// Observador de cambios del DOM (scroll infinito, React)
+const observer = new MutationObserver(() => {
+  filtrarInternacionales();
+});
 
-// scroll infinito
-const observer = new MutationObserver(ocultarInternacionales);
-observer.observe(document.body, { childList: true, subtree: true });
+// Activar observador
+observer.observe(document.body, {
+  childList: true,
+  subtree: true
+});
+
+// Ejecución inicial
+filtrarInternacionales();
